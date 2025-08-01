@@ -53,13 +53,29 @@ const CreateSection = () => {
     setGroups(groups.filter(group => group.id !== groupId));
   };
 
+  const handleRandomizeGroups = () => {
+    if (groups.length === 0) {
+      alert("Please create at least one group before randomizing.");
+      return;
+    }
+    const allStudents = [...studentList, ...groups.reduce((acc, group) => [...acc, ...group.students], [])];
+    const shuffledStudents = allStudents.sort(() => 0.5 - Math.random());
+    const newGroups = groups.map(g => ({...g, students: []}));
+    shuffledStudents.forEach((student, index) => {
+      newGroups[index % groups.length].students.push(student);
+    });
+    setGroups(newGroups);
+    setStudentList([]);
+  };
+
   const handleSaveSection = async () => {
     setLoading(true);
 
-    // Consolidate all students from groups into a single list
-    const allStudents = groups.reduce((acc, group) => {
+    // Consolidate all students from groups and unassigned list
+    const studentsInGroups = groups.reduce((acc, group) => {
       return [...acc, ...group.students];
     }, []);
+    const allStudents = [...new Set([...studentList, ...studentsInGroups])];
 
     try {
       const sectionRef = await addDoc(collection(db, 'sections'), {
@@ -125,6 +141,7 @@ const CreateSection = () => {
         <div className="col-md-9">
           <h4>Groups</h4>
           <button className="btn btn-secondary mt-3" onClick={addGroup}>Add Group</button>
+          <button className="btn btn-info mt-3 ms-2" onClick={handleRandomizeGroups}>Randomize Groups</button>
           <div className="row">
             {groups.map(group => (
               <div
@@ -170,7 +187,7 @@ const CreateSection = () => {
           </div>
         </div>
       </div>
-      {studentList.length === 0 && groups.length > 0 && (
+      {groups.length > 0 && (
         <button className="btn btn-success mt-4" onClick={handleSaveSection} disabled={loading}>
           {loading ? <Spinner animation="border" size="sm" /> : 'Save Section'}
         </button>

@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "nido-cm-main"
+    "default": "nido-cm-main",
+    "nido-cm-main": "nido-cm-main"
   }
 }
