@@ -12,6 +12,7 @@ import MyFeedback from './components/MyFeedback';
 import ManageSections from './components/ManageSections';
 import EditSection from './components/EditSection';
 import ViewFeedback from './components/ViewFeedback'; // Import the new component
+import UserDashboard from './components/UserDashboard';
 
 import { AuthContext } from './context/Authcontext';
 
@@ -31,6 +32,7 @@ function App() {
             <Route path="/manage-sections" element={currentUser && currentUser.role === 'teacher' ? <ManageSections /> : <Navigate to="/" />} />
             <Route path="/edit-section/:sectionId" element={currentUser && currentUser.role === 'teacher' ? <EditSection /> : <Navigate to="/" />} />
             <Route path="/check-ins" element={currentUser && currentUser.role === 'teacher' ? <CheckIns /> : <Navigate to="/" />} />
+            <Route path="/user-dashboard" element={currentUser && currentUser.role === 'teacher' ? <UserDashboard /> : <Navigate to="/" />} />
             
             <Route path="/view-feedback/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewFeedback /> : <Navigate to="/" />} /> {/* Add new route */}
           </Routes>

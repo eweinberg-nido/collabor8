@@ -14,7 +14,7 @@ const FeedbackForm = ({ checkIn, group, memberDetails, feedback, handleFeedbackC
                         <div key={member} className="p-3 mb-3 border">
                             <h4 className="border-bottom">{memberDetails[member]?.name || member}</h4>
                             {member === group.currentUser.email ? (
-                                <h5>Self Evaluation</h5>
+                                <h5>Self Reflection</h5>
                             ) : (
                                 <h5>Feedback for {memberDetails[member]?.name || member}</h5>
                             )}
@@ -36,16 +36,6 @@ const FeedbackForm = ({ checkIn, group, memberDetails, feedback, handleFeedbackC
                                     placeholder="Areas of Growth"
                                 />
                             </div>
-                            <select
-                                className="form-control"
-                                value={feedback[group.currentUser.email]?.[member]?.grade || '1'}
-                                onChange={(e) => handleFeedbackChange(group.currentUser.email, member, 'grade', e.target.value)}
-                            >
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                            </select>
                         </div>
                     ))}
                     <button className="btn btn-primary" onClick={handleSubmitFeedback} disabled={loading}>

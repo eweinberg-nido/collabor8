@@ -8,36 +8,48 @@ const MyFeedback = () => {
   const { currentUser } = useContext(AuthContext);
   const [feedbackData, setFeedbackData] = useState([]);
   const [loading, setLoading] = useState(false);
+  
+  // Autocomplete and user data state
   const [allStudents, setAllStudents] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState('');
-  const [viewingUserEmail, setViewingUserEmail] = useState('');
+  const [userNicknames, setUserNicknames] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
-  // Fetch all students for the teacher's dropdown
+  // Determine the user whose feedback is being viewed
+  const viewingUser = currentUser.role === 'teacher' ? selectedStudent : currentUser;
+
+  // Fetch all users for the teacher's autocomplete
   useEffect(() => {
-    const fetchAllStudents = async () => {
+    const fetchAllUsers = async () => {
       if (currentUser && currentUser.role === 'teacher') {
-        const sectionsSnapshot = await getDocs(collection(db, 'sections'));
-        const studentSet = new Set();
-        sectionsSnapshot.forEach(doc => {
-          const sectionStudents = doc.data().students || [];
-          sectionStudents.forEach(student => studentSet.add(student));
-        });
-        setAllStudents(Array.from(studentSet).sort());
+        const usersCollection = collection(db, 'users');
+        const usersSnapshot = await getDocs(usersCollection);
+        const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        const nicknames = usersData.reduce((acc, user) => {
+          acc[user.email] = user.nickname || user.email;
+          return acc;
+        }, {});
+        setUserNicknames(nicknames);
+
+        const studentData = usersData
+          .filter(user => user.role === 'student')
+          .map(user => ({ email: user.email, name: nicknames[user.email] }));
+        
+        setAllStudents(studentData.sort((a, b) => a.name.localeCompare(b.name)));
       }
     };
-    fetchAllStudents();
+    fetchAllUsers();
   }, [currentUser]);
 
   // Main feedback fetching logic
   useEffect(() => {
-    const targetUserEmail = currentUser.role === 'teacher' ? selectedStudent : currentUser.email;
+    const targetUserEmail = viewingUser?.email;
     
     if (!targetUserEmail) {
       setFeedbackData([]);
       return;
     }
-
-    setViewingUserEmail(targetUserEmail);
 
     const fetchFeedback = async () => {
       setLoading(true);
@@ -69,20 +81,16 @@ const MyFeedback = () => {
           feedbackByCheckIn[checkInId].push(feedback);
 
           if (!checkInPromises.has(checkInId)) {
-            let checkInRef;
             const sectionsIndex = pathParts.indexOf('sections');
             if (sectionsIndex !== -1) {
               const sectionId = pathParts[sectionsIndex + 1];
-              checkInRef = doc(db, `sections/${sectionId}/checkIns`, checkInId);
-            } else {
-              checkInRef = doc(db, 'checkIns', checkInId);
+              const checkInRef = doc(db, `sections/${sectionId}/checkIns`, checkInId);
+              checkInPromises.set(checkInId, getDoc(checkInRef));
             }
-            checkInPromises.set(checkInId, getDoc(checkInRef));
           }
         });
 
         const checkInDocs = await Promise.all(checkInPromises.values());
-
         const processedFeedback = [];
         for (const checkInDoc of checkInDocs) {
           if (checkInDoc.exists()) {
@@ -105,14 +113,24 @@ const MyFeedback = () => {
         setFeedbackData(sortedFeedback);
       } catch (error) {
         console.error("Failed to fetch feedback:", error);
-        alert("An error occurred while fetching your feedback. Please try again.");
       } finally {
         setLoading(false);
       }
     };
 
     fetchFeedback();
-  }, [currentUser, selectedStudent]);
+  }, [viewingUser]);
+
+  const handleSelectStudent = (student) => {
+    setSelectedStudent(student);
+    setSearchTerm(student.name);
+  };
+
+  const filteredStudents = searchTerm.length > 0 
+    ? allStudents.filter(student =>
+        student.name.toLowerCase().includes(searchTerm.toLowerCase())
+      ) 
+    : [];
 
   const renderFeedback = () => {
     if (loading) {
@@ -124,23 +142,21 @@ const MyFeedback = () => {
     return feedbackData.map(checkIn => (
       <div key={checkIn.id} className="mb-4 p-3 border rounded">
         <h3 className="h5">{checkIn.title}</h3>
-        <p className="text-muted">{checkIn.dateCreated.toDate().toLocaleDateString()}</p>
+        <p className="text-muted">{checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
         <table className="table table-bordered table-striped">
           <thead>
             <tr>
               <th>From</th>
               <th>Area of Strength</th>
               <th>Area of Growth</th>
-              <th>Grade</th>
             </tr>
           </thead>
           <tbody>
             {checkIn.feedback.map((item, index) => (
-              <tr key={index} style={item.authorId === viewingUserEmail ? { backgroundColor: '#e9f5ff' } : {}}>
-                <td>{item.authorId === viewingUserEmail ? <strong>Self-Reflection</strong> : item.authorId}</td>
+              <tr key={index} style={item.authorId === viewingUser.email ? { backgroundColor: '#e9f5ff' } : {}}>
+                <td>{item.authorId === viewingUser.email ? <strong>Self-Reflection</strong> : (userNicknames[item.authorId] || item.authorId)}</td>
                 <td>{item.areasOfStrength}</td>
                 <td>{item.areasOfGrowth}</td>
-                <td>{item.grade}</td>
               </tr>
             ))}
           </tbody>
@@ -150,28 +166,50 @@ const MyFeedback = () => {
   };
 
   return (
-    <div>
+    <div className="container mt-4">
       <h1 className="mb-4">
         {currentUser.role === 'teacher' ? 'View Student Feedback' : 'My Feedback'}
       </h1>
+      {currentUser.role === 'student' && (
+        <p className="text-muted">
+          This page displays the feedback you have received from your peers and your self-reflections from past check-ins. Use this to understand your strengths and areas for growth.
+        </p>
+      )}
       {currentUser.role === 'teacher' && (
-        <div className="mb-4 p-3 border rounded bg-light">
-          <label htmlFor="student-select" className="form-label"><strong>Select a student to view their feedback</strong></label>
-          <select 
-            id="student-select"
-            className="form-select"
-            value={selectedStudent}
-            onChange={e => setSelectedStudent(e.target.value)}
-          >
-            <option value="">-- Select a Student --</option>
-            {allStudents.map(student => (
-              <option key={student} value={student}>{student}</option>
-            ))}
-          </select>
+        <div className="p-3 border rounded bg-light mb-4 position-relative">
+          <label htmlFor="student-search" className="form-label"><strong>Search for a student</strong></label>
+          <input
+            id="student-search"
+            type="text"
+            className="form-control"
+            placeholder="Start typing a student's name..."
+            value={searchTerm}
+            onChange={e => {
+              setSearchTerm(e.target.value);
+              if (selectedStudent && e.target.value !== selectedStudent.name) {
+                setSelectedStudent(null);
+              }
+            }}
+          />
+          {searchTerm.length > 0 && filteredStudents.length > 0 && !selectedStudent && (
+            <div className="list-group position-absolute w-100" style={{ zIndex: 1000 }}>
+              {filteredStudents.map(student => (
+                <button
+                  key={student.email}
+                  type="button"
+                  className="list-group-item list-group-item-action"
+                  onClick={() => handleSelectStudent(student)}
+                >
+                  {student.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
-      {viewingUserEmail ? renderFeedback() : (
-        currentUser.role === 'teacher' && <p>Please select a student to begin.</p>
+      
+      {viewingUser ? renderFeedback() : (
+        currentUser.role === 'teacher' && <p className="text-center">Please select a student to begin.</p>
       )}
     </div>
   );

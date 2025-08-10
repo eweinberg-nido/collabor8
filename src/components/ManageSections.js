@@ -48,6 +48,7 @@ const ManageSections = () => {
   return (
     <div className="container mt-4">
       <h1>Manage Sections</h1>
+      <p className="text-muted">This page lists all the sections you have created. From here, you can click on a section to edit its details, manage its groups, or archive it to hide it from view.</p>
       <button 
         className="btn btn-primary mb-3"
         onClick={() => setShowCreateSection(!showCreateSection)}

@@ -166,7 +166,7 @@ const MyGroup = () => {
     return (
         <div>
             <h2 className="text-primary">My Group: {group.title}</h2>
-            <p>Please provide detailed feedback for each member of your group for all active check-ins.</p>
+            <p className="text-muted">For each active check-in shown below, please provide thoughtful and constructive feedback for each group member, as well as a self-reflection. Click the "Submit All Feedback" button at the bottom when you are finished.</p>
             {activeCheckIns.length > 0 ? (
                 activeCheckIns.map((checkIn) => (
                     <div key={checkIn.id} className="mb-4 p-3 border rounded shadow-sm">

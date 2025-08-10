@@ -22,8 +22,7 @@ const CheckIns = () => {
         const sectionsQuery = query(collection(db, "sections"));
         const sectionsSnapshot = await getDocs(sectionsQuery);
         const sectionsData = sectionsSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(section => !section.isArchived);
+          .map(doc => ({ id: doc.id, ...doc.data() }));
         setSections(sectionsData);
 
         // Fetch check-ins based on archive filter
@@ -116,13 +115,14 @@ const CheckIns = () => {
   return (
     <div className="container mt-4">
       <h1 className="mb-4">Manage Check-Ins</h1>
+      <p className="text-muted mb-4">A Check-in is an event that allows students in selected sections to provide peer feedback. Use a descriptive title and control whether feedback is being collected and if it's visible to students.</p>
       <div className="p-3 border rounded bg-light mb-4">
         <h5 className="mb-3">Create New Check-In</h5>
         <div className="d-flex mb-2">
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Peer Check-In Title" className="form-control me-2" />
           <select className="form-control me-2" multiple value={selectedSections} onChange={(e) => setSelectedSections([...e.target.selectedOptions].map(option => option.value))} style={{ height: '100px' }}>
             <option value="" disabled>Select Sections</option>
-            {sections.map(section => <option key={section.id} value={section.id}>{section.title}</option>)}
+            {sections.filter(s => !s.isArchived).map(section => <option key={section.id} value={section.id}>{section.title}</option>)}
           </select>
         </div>
         <div className="d-flex justify-content-end">

@@ -1,5 +1,3 @@
-//src/components/StudentList.js
-
 import React from 'react';
 
 const StudentList = ({ students, selectedStudent, setSelectedStudent, handleDeleteStudent }) => {
@@ -13,7 +11,7 @@ const StudentList = ({ students, selectedStudent, setSelectedStudent, handleDele
           style={{ wordWrap: 'break-word', position: 'relative' }}
         >
           {student}
-          {selectedStudent === student && (
+          {handleDeleteStudent && selectedStudent === student && (
             <button
               className="btn btn-danger btn-sm position-absolute top-50 end-0 translate-middle-y"
               onClick={(e) => {

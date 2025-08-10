@@ -23,6 +23,7 @@ const Navbar = () => {
           <div>
           {/*<Link className="nav-link" to="/groups">Group Setup</Link>*/}
           <Link className="nav-link" to="/check-ins">Check-ins</Link>
+          <Link className="nav-link" to="/user-dashboard">User Dashboard</Link>
  
             <Link className="nav-link" to="/manage-sections">Manage Sections</Link>
             

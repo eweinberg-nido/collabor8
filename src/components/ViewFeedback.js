@@ -1,211 +1,158 @@
-//src/components/ViewFeedback.js
+// src/components/ViewFeedback.js
 
 import React, { useState, useEffect, useContext } from 'react';
 import { db } from '../util/firebase-config';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/Authcontext';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
+import { Spinner } from 'react-bootstrap';
 
 const ViewFeedback = () => {
-  const { currentUser } = useContext(AuthContext);
   const { checkInId } = useParams();
   const [searchParams] = useSearchParams();
   const sectionId = searchParams.get('sectionId');
-  const [students, setStudents] = useState([]);
+
+  const [checkIn, setCheckIn] = useState(null);
   const [groups, setGroups] = useState([]);
   const [feedback, setFeedback] = useState({});
-  const [filterBy, setFilterBy] = useState('authorId');
-  const [selectedStudent, setSelectedStudent] = useState('');
+  const [userNicknames, setUserNicknames] = useState({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (checkInId && sectionId) {
-      fetchStudentsAndFeedback(checkInId, sectionId);
-    }
+    const fetchCheckInData = async () => {
+      if (!checkInId || !sectionId) return;
+      setLoading(true);
+
+      try {
+        // Fetch Check-In details
+        const checkInRef = doc(db, `sections/${sectionId}/checkIns`, checkInId);
+        const checkInSnap = await getDoc(checkInRef);
+        if (checkInSnap.exists()) {
+          setCheckIn({ id: checkInSnap.id, ...checkInSnap.data() });
+        } else {
+          console.log("No such check-in!");
+          setLoading(false);
+          return;
+        }
+
+        // Fetch all users for nickname mapping
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const nicknames = usersSnapshot.docs.reduce((acc, userDoc) => {
+          const userData = userDoc.data();
+          acc[userData.email] = userData.nickname || userData.email;
+          return acc;
+        }, {});
+        setUserNicknames(nicknames);
+
+        // Fetch groups for the section
+        const groupsSnapshot = await getDocs(collection(db, `sections/${sectionId}/groups`));
+        const groupsData = groupsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // Sort groups numerically by title
+        const sortedGroups = groupsData.sort((a, b) => {
+          const numA = parseInt(a.title.match(/\d+/)?.[0] || 0, 10);
+          const numB = parseInt(b.title.match(/\d+/)?.[0] || 0, 10);
+          return numA - numB;
+        });
+        setGroups(sortedGroups);
+
+        // Fetch all feedback for this check-in
+        const feedbackSnapshot = await getDocs(collection(db, `sections/${sectionId}/checkIns/${checkInId}/feedback`));
+        const feedbackData = {};
+        feedbackSnapshot.forEach(doc => {
+          const data = doc.data();
+          if (!feedbackData[data.recipientId]) {
+            feedbackData[data.recipientId] = [];
+          }
+          feedbackData[data.recipientId].push(data);
+        });
+        setFeedback(feedbackData);
+
+      } catch (error) {
+        console.error("Error fetching check-in data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCheckInData();
   }, [checkInId, sectionId]);
 
-  const fetchStudentsAndFeedback = async (checkInId, sectionId) => {
-    try {
-      // Fetch groups and all students within them
-      const groupsCollectionPath = `sections/${sectionId}/groups`;
-      const groupsSnapshot = await getDocs(collection(db, groupsCollectionPath));
-      
-      const groupData = [];
-      const allStudents = new Set();
-      groupsSnapshot.forEach((doc) => {
-        const data = doc.data();
-        groupData.push({ id: doc.id, ...data });
-        if (data.students) {
-          data.students.forEach((student) => allStudents.add(student));
-        }
-      });
+  if (loading) {
+    return <div className="text-center mt-5"><Spinner animation="border" /></div>;
+  }
 
-      const studentsArray = Array.from(allStudents);
-      setGroups(groupData);
-      setStudents(studentsArray);
-
-      // Fetch all feedback documents
-      const feedbackCollectionPath = `sections/${sectionId}/checkIns/${checkInId}/feedback`;
-      const feedbackSnapshot = await getDocs(collection(db, feedbackCollectionPath));
-      const feedbackData = {};
-      feedbackSnapshot.forEach(doc => {
-        const data = doc.data();
-        if (!feedbackData[data.authorId]) {
-          feedbackData[data.authorId] = {};
-        }
-        feedbackData[data.authorId][data.recipientId] = data;
-      });
-      
-      setFeedback(feedbackData);
-    } catch (error) {
-      console.error('Error fetching students and feedback:', error);
-    }
-  };
-
-  const renderTable = () => {
-    if (!selectedStudent || !students.length) {
-      return <p>No feedback data available for this student.</p>;
-    }
-
-    const studentGroup = groups.find(g => g.students.includes(selectedStudent));
-    const groupMembers = studentGroup ? studentGroup.students : [];
-
-    return (
-      <>
-        <h3>{selectedStudent}</h3>
-        <p><strong>Group:</strong> {studentGroup ? studentGroup.title : 'N/A'}</p>
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>{filterBy === 'authorId' ? 'Recipient' : 'Author'}</th>
-              <th>Area of Strength</th>
-              <th>Area of Growth</th>
-              <th>Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {groupMembers.map(member => {
-              if (filterBy === 'recipientId') {
-                const feedbackItem = feedback[member] && feedback[member][selectedStudent];
-                if (member !== selectedStudent && feedbackItem) {
-                  return (
-                    <tr key={member}>
-                      <td>{member}</td>
-                      <td>{feedbackItem.areasOfStrength}</td>
-                      <td>{feedbackItem.areasOfGrowth}</td>
-                      <td>{feedbackItem.grade}</td>
-                    </tr>
-                  );
-                }
-              } else { // authorId
-                const feedbackItem = feedback[selectedStudent] && feedback[selectedStudent][member];
-                if (member !== selectedStudent && feedbackItem) {
-                  return (
-                    <tr key={member}>
-                      <td>{member}</td>
-                      <td>{feedbackItem.areasOfStrength}</td>
-                      <td>{feedbackItem.areasOfGrowth}</td>
-                      <td>{feedbackItem.grade}</td>
-                    </tr>
-                  );
-                }
-              }
-              return null;
-            })}
-          </tbody>
-        </table>
-      </>
-    );
-  };
-
-  const renderAllFeedback = () => {
-    if (!students.length || Object.keys(feedback).length === 0) {
-      return <p>No feedback data available for this check-in.</p>;
-    }
-
-    return (
-      <div>
-        {students.map(student => {
-          const studentGroup = groups.find(g => g.students.includes(student));
-          const groupMembers = studentGroup ? studentGroup.students.filter(s => s !== student) : [];
-
-          return (
-            <div key={student} className="mb-4">
-              <h4>
-                {filterBy === 'authorId' ? `Feedback from: ${student}` : `Feedback for: ${student}`}
-                <span className="ms-2 fs-6 fw-normal"> (Group: {studentGroup ? studentGroup.title : 'N/A'})</span>
-              </h4>
-              <table className="table table-bordered table-striped table-sm">
-                <thead>
-                  <tr>
-                    <th>{filterBy === 'authorId' ? 'Recipient' : 'Author'}</th>
-                    <th>Area of Strength</th>
-                    <th>Area of Growth</th>
-                    <th>Grade</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupMembers.map(member => {
-                    let feedbackItem;
-                    if (filterBy === 'authorId') {
-                      feedbackItem = feedback[student] && feedback[student][member];
-                    } else { // recipientId
-                      feedbackItem = feedback[member] && feedback[member][student];
-                    }
-                    
-                    if (feedbackItem) {
-                      return (
-                        <tr key={member}>
-                          <td>{member}</td>
-                          <td>{feedbackItem.areasOfStrength}</td>
-                          <td>{feedbackItem.areasOfGrowth}</td>
-                          <td>{feedbackItem.grade}</td>
-                        </tr>
-                      );
-                    }
-                    return null;
-                  })}
-                </tbody>
-              </table>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  if (!checkIn) {
+    return <p className="text-center mt-5">Check-in not found.</p>;
+  }
 
   return (
-    <div>
-      <h2 className="text-primary">View Feedback</h2>
-      <div className="row mb-3">
-        <div className="col-md-6">
-          <label htmlFor="filterBySelect" className="form-label">Filter By</label>
-          <select
-            id="filterBySelect"
-            className="form-control"
-            value={filterBy}
-            onChange={(e) => setFilterBy(e.target.value)}
-          >
-            <option value="authorId">Author</option>
-            <option value="recipientId">Recipient</option>
-          </select>
-        </div>
-        <div className="col-md-6">
-          <label htmlFor="studentSelect" className="form-label">Select Student</label>
-          <select
-            id="studentSelect"
-            className="form-control"
-            value={selectedStudent}
-            onChange={(e) => setSelectedStudent(e.target.value)}
-          >
-            <option value="">Show All Students</option>
-            {students.map(student => (
-              <option key={student} value={student}>{student}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+    <div className="container mt-4">
+      <h2 className="text-primary mb-3">Feedback for: {checkIn.title}</h2>
+      <p className="text-muted">Date: {checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
       
-      {selectedStudent ? renderTable() : renderAllFeedback()}
+      {groups.map(group => (
+        <div key={group.id} className="mb-5">
+          <h3 className="h4 p-2 bg-light border-bottom">Group: {group.title}</h3>
+          {(group.students || []).map(studentEmail => {
+            const receivedFeedback = feedback[studentEmail] || [];
+            const selfReflection = receivedFeedback.find(f => f.authorId === studentEmail);
+            const peerFeedback = receivedFeedback.filter(f => f.authorId !== studentEmail);
+
+            return (
+              <div key={studentEmail} className="p-3 border mb-3">
+                <h4 className="h5">Feedback for: <strong>{userNicknames[studentEmail] || studentEmail}</strong></h4>
+                
+                {peerFeedback.length > 0 && (
+                  <>
+                    <h5>Peer Feedback</h5>
+                    <table className="table table-bordered table-striped table-sm">
+                      <thead>
+                        <tr>
+                          <th>From</th>
+                          <th>Area of Strength</th>
+                          <th>Area of Growth</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {peerFeedback.map((item, index) => (
+                          <tr key={index}>
+                            <td>{userNicknames[item.authorId] || item.authorId}</td>
+                            <td>{item.areasOfStrength}</td>
+                            <td>{item.areasOfGrowth}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {selfReflection && (
+                  <>
+                    <h5 className="mt-3">Self-Reflection</h5>
+                    <table className="table table-bordered table-sm bg-light">
+                      <tbody>
+                        <tr>
+                          <td className="w-25"><strong>Area of Strength</strong></td>
+                          <td>{selfReflection.areasOfStrength}</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Area of Growth</strong></td>
+                          <td>{selfReflection.areasOfGrowth}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {peerFeedback.length === 0 && !selfReflection && (
+                  <p className="text-muted">No feedback submitted for this user.</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 };
