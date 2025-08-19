@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../util/firebase-config';
+import { db } from '../firebaseConfig';
 import { collection, addDoc, setDoc, getDocs, doc, updateDoc, query, collectionGroup, orderBy, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { Spinner } from 'react-bootstrap';
@@ -149,7 +149,8 @@ const CheckIns = () => {
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Peer Check-In Title" className="form-control me-2" />
           <select className="form-control me-2" multiple value={selectedSections} onChange={(e) => setSelectedSections([...e.target.selectedOptions].map(option => option.value))} style={{ height: '100px' }}>
             <option value="" disabled>Select Sections</option>
-            {sections.filter(s => !s.isArchived).map(section => <option key={section.id} value={section.id}>{section.title}</option>)}          </select>
+            {sections.filter(s => !s.isArchived).map(section => <option key={section.id} value={section.id}>{section.title}</option>)}
+          </select>
         </div>
         <div className="d-flex justify-content-end">
           <select className="form-select me-2 w-auto" value={collectingFeedback} onChange={(e) => setCollectingFeedback(e.target.value === 'true')}>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../util/firebase-config';
+import { db } from '../firebaseConfig';
 import { doc, getDoc, collection, getDocs, updateDoc, deleteDoc, writeBatch, query, where, setDoc, collectionGroup } from 'firebase/firestore';
 import { useParams, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';

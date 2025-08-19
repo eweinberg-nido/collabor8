@@ -1,7 +1,7 @@
 // src/components/ViewFeedback.js
 
 import React, { useState, useEffect, useContext } from 'react';
-import { db } from '../util/firebase-config';
+import { db } from '../firebaseConfig';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/Authcontext';
 import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -110,64 +110,6 @@ const ViewFeedback = () => {
     return <p className="text-center mt-5">Check-in not found.</p>;
   }
 
-  const renderStudentFeedback = (studentEmail) => {
-    const receivedFeedback = feedback[studentEmail] || [];
-    const selfReflection = receivedFeedback.find(f => f.authorId === studentEmail);
-    const peerFeedback = receivedFeedback.filter(f => f.authorId !== studentEmail);
-
-    return (
-      <div key={studentEmail} className="p-3 border mb-3">
-        <h4 className="h5">Feedback for: <strong>{userNicknames[studentEmail] || studentEmail}</strong></h4>
-        
-        {peerFeedback.length > 0 && (
-          <>
-            <h5>Peer Feedback</h5>
-            <table className="table table-bordered table-striped table-sm">
-              <thead>
-                <tr>
-                  <th>From</th>
-                  <th>Area of Strength</th>
-                  <th>Area of Growth</th>
-                </tr>
-              </thead>
-              <tbody>
-                {peerFeedback.map((item, index) => (
-                  <tr key={index}>
-                    <td>{userNicknames[item.authorId] || item.authorId}</td>
-                    <td>{item.areasOfStrength}</td>
-                    <td>{item.areasOfGrowth}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {selfReflection && (
-          <>
-            <h5 className="mt-3">Self-Reflection</h5>
-            <table className="table table-bordered table-sm bg-light">
-              <tbody>
-                <tr>
-                  <td className="w-25"><strong>Area of Strength</strong></td>
-                  <td>{selfReflection.areasOfStrength}</td>
-                </tr>
-                <tr>
-                  <td><strong>Area of Growth</strong></td>
-                  <td>{selfReflection.areasOfGrowth}</td>
-                </tr>
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {peerFeedback.length === 0 && !selfReflection && (
-          <p className="text-muted">No feedback submitted for this user.</p>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="container mt-4">
       <h2 className="text-primary mb-3">Feedback for: {checkIn.title}</h2>
@@ -189,23 +131,70 @@ const ViewFeedback = () => {
         </div>
       )}
       
-      {checkIn.quickCheckin ? (
-        <div>
-          <h3>Feedback</h3>
-          {Object.keys(feedback)
-            .filter(studentEmail => selectedStudentEmail ? studentEmail === selectedStudentEmail : true)
-            .map(studentEmail => renderStudentFeedback(studentEmail))}
+      {groups.map(group => (
+        <div key={group.id} className="mb-5">
+          <h3 className="h4 p-2 bg-light border-bottom">Group: {group.title}</h3>
+          {(group.students || [])
+            .filter(studentEmail => selectedStudentEmail ? studentEmail === selectedStudentEmail : true) // Filter students
+            .map(studentEmail => {
+            const receivedFeedback = feedback[studentEmail] || [];
+            const selfReflection = receivedFeedback.find(f => f.authorId === studentEmail);
+            const peerFeedback = receivedFeedback.filter(f => f.authorId !== studentEmail);
+
+            return (
+              <div key={studentEmail} className="p-3 border mb-3">
+                <h4 className="h5">Feedback for: <strong>{userNicknames[studentEmail] || studentEmail}</strong></h4>
+                
+                {peerFeedback.length > 0 && (
+                  <>
+                    <h5>Peer Feedback</h5>
+                    <table className="table table-bordered table-striped table-sm">
+                      <thead>
+                        <tr>
+                          <th>From</th>
+                          <th>Area of Strength</th>
+                          <th>Area of Growth</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {peerFeedback.map((item, index) => (
+                          <tr key={index}>
+                            <td>{userNicknames[item.authorId] || item.authorId}</td>
+                            <td>{item.areasOfStrength}</td>
+                            <td>{item.areasOfGrowth}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {selfReflection && (
+                  <>
+                    <h5 className="mt-3">Self-Reflection</h5>
+                    <table className="table table-bordered table-sm bg-light">
+                      <tbody>
+                        <tr>
+                          <td className="w-25"><strong>Area of Strength</strong></td>
+                          <td>{selfReflection.areasOfStrength}</td>
+                        </tr>
+                        <tr>
+                          <td><strong>Area of Growth</strong></td>
+                          <td>{selfReflection.areasOfGrowth}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </>
+                )}
+
+                {peerFeedback.length === 0 && !selfReflection && (
+                  <p className="text-muted">No feedback submitted for this user.</p>
+                )}
+              </div>
+            );
+          })}
         </div>
-      ) : (
-        groups.map(group => (
-          <div key={group.id} className="mb-5">
-            <h3 className="h4 p-2 bg-light border-bottom">Group: {group.title}</h3>
-            {(group.students || [])
-              .filter(studentEmail => selectedStudentEmail ? studentEmail === selectedStudentEmail : true)
-              .map(studentEmail => renderStudentFeedback(studentEmail))}
-          </div>
-        ))
-      )}
+      ))}
     </div>
   );
 };

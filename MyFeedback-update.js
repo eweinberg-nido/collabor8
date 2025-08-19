@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { db } from '../util/firebase-config';
+import { db } from '../firebaseConfig';
 import { AuthContext } from '../context/Authcontext';
 import { collection, collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { Spinner } from 'react-bootstrap';
@@ -120,7 +120,7 @@ const MyFeedback = () => {
     };
 
     fetchFeedback();
-  }, [viewingUser, viewAsStudentMode]);
+  }, [viewingUser]);
 
   const handleSelectStudent = (student) => {
     setSelectedStudent(student);
@@ -140,48 +140,38 @@ const MyFeedback = () => {
     if (feedbackData.length === 0) {
       return <p>No visible feedback is available for this user.</p>;
     }
-    return feedbackData.map(checkIn => {
-      const selfReflection = checkIn.feedback.filter(item => item.authorId === viewingUser.email);
-      const peerFeedback = checkIn.feedback.filter(item => item.authorId !== viewingUser.email);
-
-      return (
-        <div key={checkIn.id} className="mb-4 p-3 border rounded">
-          <h3 className="h5">{checkIn.title}</h3>
-          <p className="text-muted">{checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
-          <table className="table table-bordered table-striped">
-            <thead>
-              <tr>
-                <th>From</th>
-                <th>Area of Strength</th>
-                <th>Area of Growth</th>
+    return feedbackData.map(checkIn => (
+      <div key={checkIn.id} className="mb-4 p-3 border rounded">
+        <h3 className="h5">{checkIn.title}</h3>
+        <p className="text-muted">{checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
+        <table className="table table-bordered table-striped">
+          <thead>
+            <tr>
+              <th>From</th>
+              <th>Area of Strength</th>
+              <th>Area of Growth</th>
+            </tr>
+          </thead>
+          <tbody>
+            {checkIn.feedback.map((item, index) => (
+              <tr key={index} style={item.authorId === viewingUser.email ? { backgroundColor: '#e9f5ff' } : {}}>
+                <td>
+                  {item.authorId === viewingUser.email ? (
+                    <strong>Self-Reflection</strong>
+                  ) : currentUser.role === 'teacher' ? (
+                    userNicknames[item.authorId] || 'Anonymous'
+                  ) : (
+                    'A Peer'
+                  )}
+                </td>
+                <td>{item.areasOfStrength}</td>
+                <td>{item.areasOfGrowth}</td>
               </tr>
-            </thead>
-            <tbody>
-              {selfReflection.map((item, index) => (
-                <tr key={index} style={{ backgroundColor: '#e9f5ff' }}>
-                  <td><strong>Self-Reflection</strong></td>
-                  <td>{item.areasOfStrength}</td>
-                  <td>{item.areasOfGrowth}</td>
-                </tr>
-              ))}
-              {peerFeedback.map((item, index) => (
-                <tr key={index}>
-                  <td>
-                    {(currentUser.role === 'teacher' && !viewAsStudentMode) ? (
-                      userNicknames[item.authorId] || 'Anonymous'
-                    ) : (
-                      'A Peer'
-                    )}
-                  </td>
-                  <td>{item.areasOfStrength}</td>
-                  <td>{item.areasOfGrowth}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    });
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ));
   };
 
   return (

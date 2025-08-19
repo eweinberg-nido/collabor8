@@ -1,7 +1,7 @@
 // src/components/Navbar.js
 import React, { useContext } from 'react';
 import { AuthContext } from '../context/Authcontext';
-import { signInWithGoogle } from '../util/firebase-config'; // Ensure this is correctly imported
+import { signInWithGoogle } from '../firebaseConfig'; // Ensure this is correctly imported
 import { Link } from 'react-router-dom';
 
 const Navbar = () => {
