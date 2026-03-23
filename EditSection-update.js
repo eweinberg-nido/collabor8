@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebaseConfig';
+import { db } from '../util/firebase-config';
 import { doc, getDoc, collection, getDocs, updateDoc, deleteDoc, writeBatch, query, where, setDoc, collectionGroup } from 'firebase/firestore';
 import { useParams, useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,43 +19,57 @@ const EditSection = () => {
   useEffect(() => {
     const fetchSectionData = async () => {
       setLoading(true);
-      const usersSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'student'), where('isActive', '==', true)));
-      const allActiveStudents = usersSnapshot.docs.map(doc => doc.data().email);
+      try {
+        // Fetch all data concurrently
+        const [usersSnapshot, groupsSnapshot, sectionSnap] = await Promise.all([
+          getDocs(query(collection(db, 'users'), where('role', '==', 'student'), where('isActive', '==', true))),
+          getDocs(query(collectionGroup(db, 'groups'))),
+          getDoc(doc(db, 'sections', sectionId))
+        ]);
 
-      const groupsQuery = query(collectionGroup(db, 'groups'));
-      const groupsSnapshot = await getDocs(groupsQuery);
-      const studentsInAnyGroup = new Set();
-      groupsSnapshot.forEach(doc => {
-        if (doc.data().students) {
-          doc.data().students.forEach(student => studentsInAnyGroup.add(student));
-        }
-      });
-
-      const sectionRef = doc(db, 'sections', sectionId);
-      const sectionSnap = await getDoc(sectionRef);
-
-      if (sectionSnap.exists()) {
-        const sectionData = sectionSnap.data();
-        setSectionTitle(sectionData.title);
-
-        const currentGroupsSnap = await getDocs(collection(sectionRef, 'groups'));
-        const fetchedGroups = currentGroupsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setGroups(fetchedGroups);
-
-        const studentsInCurrentSectionGroups = new Set();
-        fetchedGroups.forEach(group => {
-          if (group.students) {
-            group.students.forEach(student => studentsInCurrentSectionGroups.add(student));
+        const allActiveStudents = usersSnapshot.docs.map(doc => doc.data().email);
+        const studentsInAnyGroup = new Set();
+        groupsSnapshot.forEach(doc => {
+          if (doc.data().students) {
+            doc.data().students.forEach(student => studentsInAnyGroup.add(student));
           }
         });
 
-        const unassigned = sectionData.students.filter(student => !studentsInCurrentSectionGroups.has(student));
-        setUnassignedStudents(unassigned);
+        if (sectionSnap.exists()) {
+          const sectionData = sectionSnap.data();
+          setSectionTitle(sectionData.title);
 
-        const available = allActiveStudents.filter(student => !studentsInAnyGroup.has(student) && !sectionData.students.includes(student));
-        setAvailableStudents(available);
+          const currentGroupsSnap = await getDocs(collection(sectionSnap.ref, 'groups'));
+          const fetchedGroups = currentGroupsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setGroups(fetchedGroups);
+
+          console.log('fetchedGroups', fetchedGroups);
+
+          const studentsInCurrentSectionGroups = new Set();
+          fetchedGroups.forEach(group => {
+            if (group.students) {
+              group.students.forEach(student => studentsInCurrentSectionGroups.add(student));
+            }
+          });
+
+          const unassigned = sectionData.students.filter(student => !studentsInCurrentSectionGroups.has(student));
+          setUnassignedStudents(unassigned);
+
+          const available = allActiveStudents.filter(student => 
+            !studentsInAnyGroup.has(student) && 
+            !sectionData.students.includes(student)
+          );
+          setAvailableStudents(available);
+        } else {
+          console.log("No such section!");
+          // Handle case where section doesn't exist, maybe navigate away
+        }
+      } catch (error) {
+        console.error("Error fetching section data:", error);
+        // Optionally set an error state to show in the UI
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchSectionData();
@@ -68,21 +82,46 @@ const EditSection = () => {
 
   const handleSaveSection = async () => {
     const studentsInGroups = groups.reduce((acc, group) => [...acc, ...group.students], []);
-    const allStudentsForThisSection = [...new Set([...unassignedStudents, ...studentsInGroups])];
+    const allStudentsForThisSection = [...new Set([...unassignedStudents, ...studentsInGroups])].filter(Boolean);
 
     const sectionRef = doc(db, 'sections', sectionId);
+
+    // Atomically get the section data before any writes
+    const originalSectionSnap = await getDoc(sectionRef);
+    const originalStudentEmails = originalSectionSnap.exists() ? originalSectionSnap.data().students : [];
+
     await updateDoc(sectionRef, { title: sectionTitle, students: allStudentsForThisSection });
 
     const batch = writeBatch(db);
+    const groupsCollectionRef = collection(sectionRef, 'groups');
+
+    // Delete all existing groups for this section
+    const existingGroupsSnap = await getDocs(groupsCollectionRef);
+    existingGroupsSnap.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+
+    // Create all groups from the current state
     groups.forEach(group => {
-      const groupRef = doc(collection(sectionRef, 'groups'), group.id);
+      const groupRef = doc(groupsCollectionRef);
       batch.set(groupRef, { title: group.title, students: group.students });
     });
 
     const usersCollection = collection(db, 'users');
+    
+    console.log('allStudentsForThisSection', allStudentsForThisSection);
+    // Set isPlaced for all students currently in the section
     for (const student of allStudentsForThisSection) {
       const userRef = doc(usersCollection, student);
       batch.update(userRef, { isPlaced: true });
+    }
+
+    // Find students who were removed and update their isPlaced status
+    const removedStudents = originalStudentEmails.filter(email => !allStudentsForThisSection.includes(email));
+    console.log('removedStudents', removedStudents);
+    for (const student of removedStudents) {
+      const userRef = doc(usersCollection, student);
+      batch.update(userRef, { isPlaced: false });
     }
 
     await batch.commit();
@@ -101,6 +140,14 @@ const EditSection = () => {
         const userRef = doc(usersCollection, student);
         batch.update(userRef, { isPlaced: false });
       }
+      
+      // Also delete all groups in the section
+      const groupsCollectionRef = collection(sectionRef, 'groups');
+      const groupsSnapshot = await getDocs(groupsCollectionRef);
+      groupsSnapshot.forEach(groupDoc => {
+        batch.delete(groupDoc.ref);
+      });
+
       await batch.commit();
 
       await deleteDoc(sectionRef);
@@ -111,26 +158,44 @@ const EditSection = () => {
 
   const handleAddStudentsFromInput = async () => {
     const emails = newStudentEmails.split(';').map(email => email.trim()).filter(email => email);
-    const usersCollection = collection(db, 'users');
-    
+    if (emails.length === 0) return;
+
+    const usersCollectionRef = collection(db, 'users');
+    const newStudents = [];
+
     for (const email of emails) {
-      const userQuery = query(usersCollection, where("email", "==", email));
-      const userSnapshot = await getDocs(userQuery);
-      if (userSnapshot.empty) {
-        await setDoc(doc(usersCollection, email), { email: email, role: 'student', isActive: true, isPlaced: false });
+      const userRef = doc(usersCollectionRef, email);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        // To keep things simple, we create a user doc, but a better UX might confirm this.
+        await setDoc(userRef, { email: email, role: 'student', isActive: true, isPlaced: false });
       }
       if (!unassignedStudents.includes(email)) {
-        setUnassignedStudents(prev => [...prev, email]);
+        newStudents.push(email);
       }
     }
+
+    setUnassignedStudents(prev => [...prev, ...newStudents]);
     setNewStudentEmails('');
   };
 
-  const handleRemoveGroup = (groupId) => {
+  const handleRemoveGroup = async (groupId) => {
     const groupToRemove = groups.find(group => group.id === groupId);
     if (groupToRemove) {
+      // Add students from the removed group back to unassigned
       setUnassignedStudents(prev => [...prev, ...groupToRemove.students]);
+      // Filter out the removed group from the UI
       setGroups(prev => prev.filter(group => group.id !== groupId));
+
+      // If the group has an ID, it exists in Firestore, so delete it.
+      if (groupId) {
+        try {
+          await deleteDoc(doc(db, 'sections', sectionId, 'groups', groupId));
+        } catch (error) {
+          console.error("Error deleting group:", error);
+          // Optionally, revert UI changes or notify the user
+        }
+      }
     }
   };
 
@@ -174,6 +239,12 @@ const EditSection = () => {
     setUnassignedStudents([]);
   };
 
+  const handleUngroupAll = () => {
+    const allStudentsInGroups = groups.reduce((acc, group) => [...acc, ...group.students], []);
+    setUnassignedStudents(prev => [...prev, ...allStudentsInGroups]);
+    setGroups(prev => prev.map(g => ({ ...g, students: [] })));
+  };
+
   const addStudentToSection = (student) => {
     setUnassignedStudents([...unassignedStudents, student]);
     setAvailableStudents(availableStudents.filter(s => s !== student));
@@ -204,6 +275,7 @@ const EditSection = () => {
           <h2>Groups</h2>
           <button className="btn btn-secondary mb-2" onClick={handleAddGroup}>Add Group</button>
           <button className="btn btn-info mb-2 ms-2" onClick={handleRandomizeGroups}>Randomize</button>
+          <button className="btn btn-warning mb-2 ms-2" onClick={handleUngroupAll}>Ungroup All</button>
           <div className="row">
             {groups.map(group => (
               <div key={group.id} className="col-md-4 mb-3" onClick={() => selection && handleAddStudentToGroup(selection.student, group.id)}>

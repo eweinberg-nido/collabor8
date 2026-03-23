@@ -9,7 +9,7 @@ const MyFeedback = () => {
   const [feedbackData, setFeedbackData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [viewAsStudentMode, setViewAsStudentMode] = useState(true); // New state for the switch
-  
+
   // Autocomplete and user data state
   const [allStudents, setAllStudents] = useState([]);
   const [userNicknames, setUserNicknames] = useState({});
@@ -26,7 +26,7 @@ const MyFeedback = () => {
         const usersCollection = collection(db, 'users');
         const usersSnapshot = await getDocs(usersCollection);
         const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
+
         const nicknames = usersData.reduce((acc, user) => {
           acc[user.email] = user.nickname || user.email;
           return acc;
@@ -36,7 +36,7 @@ const MyFeedback = () => {
         const studentData = usersData
           .filter(user => user.role === 'student')
           .map(user => ({ email: user.email, name: nicknames[user.email] }));
-        
+
         setAllStudents(studentData.sort((a, b) => a.name.localeCompare(b.name)));
       }
     };
@@ -46,7 +46,7 @@ const MyFeedback = () => {
   // Main feedback fetching logic
   useEffect(() => {
     const targetUserEmail = viewingUser?.email;
-    
+
     if (!targetUserEmail) {
       setFeedbackData([]);
       return;
@@ -127,10 +127,10 @@ const MyFeedback = () => {
     setSearchTerm(student.name);
   };
 
-  const filteredStudents = searchTerm.length > 0 
+  const filteredStudents = searchTerm.length > 0
     ? allStudents.filter(student =>
-        student.name.toLowerCase().includes(searchTerm.toLowerCase())
-      ) 
+      student.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
     : [];
 
   const renderFeedback = () => {
@@ -150,18 +150,35 @@ const MyFeedback = () => {
           <p className="text-muted">{checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
           <table className="table table-bordered table-striped">
             <thead>
-              <tr>
-                <th>From</th>
-                <th>Area of Strength</th>
-                <th>Area of Growth</th>
-              </tr>
+              {checkIn.type === 'numerical' ? (
+                <tr>
+                  <th>From</th>
+                  <th>Grade</th>
+                  <th>Justification</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>From</th>
+                  <th>Area of Strength</th>
+                  <th>Area of Growth</th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {selfReflection.map((item, index) => (
                 <tr key={index} style={{ backgroundColor: '#e9f5ff' }}>
                   <td><strong>Self-Reflection</strong></td>
-                  <td>{item.areasOfStrength}</td>
-                  <td>{item.areasOfGrowth}</td>
+                  {checkIn.type === 'numerical' ? (
+                    <>
+                      <td>{item.grade}</td>
+                      <td>{item.justification}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{item.areasOfStrength}</td>
+                      <td>{item.areasOfGrowth}</td>
+                    </>
+                  )}
                 </tr>
               ))}
               {peerFeedback.map((item, index) => (
@@ -173,8 +190,17 @@ const MyFeedback = () => {
                       'A Peer'
                     )}
                   </td>
-                  <td>{item.areasOfStrength}</td>
-                  <td>{item.areasOfGrowth}</td>
+                  {checkIn.type === 'numerical' ? (
+                    <>
+                      <td>{item.grade}</td>
+                      <td>{item.justification}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td>{item.areasOfStrength}</td>
+                      <td>{item.areasOfGrowth}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -236,7 +262,7 @@ const MyFeedback = () => {
           )}
         </div>
       )}
-      
+
       {viewingUser ? renderFeedback() : (
         currentUser.role === 'teacher' && <p className="text-center">Please select a student to begin.</p>
       )}

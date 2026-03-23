@@ -13,6 +13,7 @@ const CheckIns = () => {
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [checkInType, setCheckInType] = useState('standard');
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -30,7 +31,7 @@ const CheckIns = () => {
         const checkInsQuery = showArchived
           ? query(checkInsBaseQuery, orderBy('dateCreated', 'desc'))
           : query(checkInsBaseQuery, where('isArchived', '!=', true), orderBy('dateCreated', 'desc'));
-        
+
         // Firestore limitation: cannot have inequality filter on one field and orderBy on another.
         // We will fetch all and filter client-side as a workaround.
         const allCheckinsQuery = query(collectionGroup(db, 'checkIns'), orderBy('dateCreated', 'desc'));
@@ -72,6 +73,7 @@ const CheckIns = () => {
           collectingFeedback,
           feedbackVisible,
           isArchived: false,
+          type: checkInType,
         });
 
         const groupsQuery = query(collection(db, `sections/${sectionId}/groups`));
@@ -90,7 +92,7 @@ const CheckIns = () => {
                   recipientId: recipientEmail,
                   areasOfStrength: '',
                   areasOfGrowth: '',
-                  grade: '1',
+                  grade: '',
                   createdAt: serverTimestamp(),
                 });
               }
@@ -152,6 +154,10 @@ const CheckIns = () => {
             {sections.filter(s => !s.isArchived).map(section => <option key={section.id} value={section.id}>{section.title}</option>)}          </select>
         </div>
         <div className="d-flex justify-content-end">
+          <select className="form-select me-2 w-auto" value={checkInType} onChange={(e) => setCheckInType(e.target.value)}>
+            <option value="standard">Standard</option>
+            <option value="numerical">Numerical Grading</option>
+          </select>
           <select className="form-select me-2 w-auto" value={collectingFeedback} onChange={(e) => setCollectingFeedback(e.target.value === 'true')}>
             <option value="true">Collecting Feedback</option>
             <option value="false">Not Collecting</option>
@@ -183,7 +189,11 @@ const CheckIns = () => {
               {checkIn.isArchived && <span className="badge bg-secondary ms-2">Archived</span>}
             </div>
             <div>
-              <Link to={`/view-feedback/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
+              {checkIn.type === 'numerical' ? (
+                <Link to={`/view-group-grading/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
+              ) : (
+                <Link to={`/view-feedback/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
+              )}
               <button className={`btn btn-sm ${checkIn.isArchived ? 'btn-secondary' : 'btn-warning'}`} onClick={() => handleArchiveToggle(checkIn.sectionId, checkIn.id, checkIn.isArchived)}>
                 {checkIn.isArchived ? 'Unarchive' : 'Archive'}
               </button>

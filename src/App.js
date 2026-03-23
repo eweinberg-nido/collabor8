@@ -12,6 +12,7 @@ import MyFeedback from './components/MyFeedback';
 import ManageSections from './components/ManageSections';
 import EditSection from './components/EditSection';
 import ViewFeedback from './components/ViewFeedback'; // Import the new component
+import ViewGroupGrading from './components/ViewGroupGrading';
 import UserDashboard from './components/UserDashboard';
 import QuickCheckIn from './components/QuickCheckin';
 
@@ -29,14 +30,15 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/groups" element={currentUser && currentUser.role === 'teacher' ? <Groups /> : <Navigate to="/" />} />
             <Route path="/my-group" element={currentUser ? <MyGroup /> : <Navigate to="/" />} />
-            <Route path="/my-feedback" element={currentUser ? <MyFeedback /> : <Navigate to="/" />}/>
+            <Route path="/my-feedback" element={currentUser ? <MyFeedback /> : <Navigate to="/" />} />
             <Route path="/manage-sections" element={currentUser && currentUser.role === 'teacher' ? <ManageSections /> : <Navigate to="/" />} />
             <Route path="/edit-section/:sectionId" element={currentUser && currentUser.role === 'teacher' ? <EditSection /> : <Navigate to="/" />} />
             <Route path="/check-ins" element={currentUser && currentUser.role === 'teacher' ? <CheckIns /> : <Navigate to="/" />} />
             <Route path="/quick-check-in" element={currentUser && currentUser.role === 'teacher' ? <QuickCheckIn /> : <Navigate to="/" />} />
             <Route path="/user-dashboard" element={currentUser && currentUser.role === 'teacher' ? <UserDashboard /> : <Navigate to="/" />} />
-            
+
             <Route path="/view-feedback/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewFeedback /> : <Navigate to="/" />} /> {/* Add new route */}
+            <Route path="/view-group-grading/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewGroupGrading /> : <Navigate to="/" />} />
           </Routes>
         </div>
       </Router>
