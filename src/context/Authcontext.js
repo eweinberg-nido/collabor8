@@ -29,11 +29,19 @@ const AuthProvider = ({ children }) => {
             email: user.email,
             displayName: user.displayName,
             role: 'student',
-            classBlock: classBlock
+            classBlock: classBlock,
+            uid: user.uid,
           };
           await setDoc(userRef, userData);
         } else {
           userData = userSnap.data();
+          if (userData.uid !== user.uid || userData.displayName !== user.displayName) {
+            await setDoc(userRef, {
+              uid: user.uid,
+              displayName: user.displayName,
+            }, { merge: true });
+            userData = { ...userData, uid: user.uid, displayName: user.displayName };
+          }
         }
         setCurrentUser({ ...user, role: userData.role, classBlock: userData.classBlock });
       } else {

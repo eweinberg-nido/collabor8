@@ -15,6 +15,8 @@ import ViewFeedback from './components/ViewFeedback'; // Import the new componen
 import ViewGroupGrading from './components/ViewGroupGrading';
 import UserDashboard from './components/UserDashboard';
 import QuickCheckIn from './components/QuickCheckin';
+import WorkshopTickets from './components/WorkshopTickets';
+import WorkshopSignups from './components/WorkshopSignups';
 
 import { AuthContext } from './context/Authcontext';
 
@@ -31,6 +33,8 @@ function App() {
             <Route path="/groups" element={currentUser && currentUser.role === 'teacher' ? <Groups /> : <Navigate to="/" />} />
             <Route path="/my-group" element={currentUser ? <MyGroup /> : <Navigate to="/" />} />
             <Route path="/my-feedback" element={currentUser ? <MyFeedback /> : <Navigate to="/" />} />
+            <Route path="/workshops" element={currentUser ? <WorkshopTickets /> : <Navigate to="/" />} />
+            <Route path="/workshop-signups" element={currentUser && currentUser.role === 'teacher' ? <WorkshopSignups /> : <Navigate to="/" />} />
             <Route path="/manage-sections" element={currentUser && currentUser.role === 'teacher' ? <ManageSections /> : <Navigate to="/" />} />
             <Route path="/edit-section/:sectionId" element={currentUser && currentUser.role === 'teacher' ? <EditSection /> : <Navigate to="/" />} />
             <Route path="/check-ins" element={currentUser && currentUser.role === 'teacher' ? <CheckIns /> : <Navigate to="/" />} />
