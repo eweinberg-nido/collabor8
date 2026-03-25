@@ -217,13 +217,23 @@ const WorkshopSignups = () => {
         }
 
         await runTransaction(db, async (transaction) => {
+          let currentTicketSnapshot = null;
+          let availableTicketSnapshot = null;
+
           if (currentRegistration?.ticketRef) {
-            const currentTicketSnapshot = await transaction.get(currentRegistration.ticketRef);
+            currentTicketSnapshot = await transaction.get(currentRegistration.ticketRef);
+          }
+
+          if (availableTicketRef) {
+            availableTicketSnapshot = await transaction.get(availableTicketRef);
+            if (!availableTicketSnapshot.exists() || !isTicketAvailable(availableTicketSnapshot.data())) {
+              throw new Error('Ticket was claimed by another user.');
+            }
+          }
+
+          if (currentTicketSnapshot?.exists()) {
             const currentTicket = currentTicketSnapshot.data();
-            if (
-              currentTicketSnapshot.exists() &&
-              (currentTicket.ownerEmail === student.email || currentTicket.ownerUid === student.uid)
-            ) {
+            if (currentTicket.ownerEmail === student.email || currentTicket.ownerUid === student.uid) {
               transaction.update(currentRegistration.ticketRef, {
                 ownerUid: null,
                 ownerEmail: null,
@@ -232,12 +242,7 @@ const WorkshopSignups = () => {
             }
           }
 
-          if (availableTicketRef) {
-            const availableTicketSnapshot = await transaction.get(availableTicketRef);
-            if (!availableTicketSnapshot.exists() || !isTicketAvailable(availableTicketSnapshot.data())) {
-              throw new Error('Ticket was claimed by another user.');
-            }
-
+          if (availableTicketSnapshot?.exists()) {
             transaction.update(availableTicketRef, {
               ownerUid: student.uid || null,
               ownerEmail: student.email,
