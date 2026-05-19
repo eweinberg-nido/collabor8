@@ -24,7 +24,6 @@ const Navbar = () => {
           {/*<Link className="nav-link" to="/groups">Group Setup</Link>*/}
           <Link className="nav-link" to="/check-ins">Check-ins</Link>
           <Link className="nav-link" to="/quick-check-in">Quick Check-in</Link>
-          <Link className="nav-link" to="/workshop-signups">Workshop Signups</Link>
           <Link className="nav-link" to="/user-dashboard">User Dashboard</Link>
  
             <Link className="nav-link" to="/manage-sections">Manage Sections</Link>
@@ -34,7 +33,6 @@ const Navbar = () => {
         )}
         {!loading && currentUser  && (
           <div>
-          <Link className="nav-link" to="/workshops">Workshops</Link>
           <Link className="nav-link" to="/my-group">My Group</Link>
           <Link className="nav-link" to="/my-feedback">My Feedback</Link>
           </div>
