@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../util/firebase-config';
-import { collection, addDoc, setDoc, getDocs, doc, updateDoc, query, collectionGroup, orderBy, serverTimestamp, where, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, getDocs, doc, updateDoc, query, collectionGroup, orderBy, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import { Spinner } from 'react-bootstrap';
 
@@ -15,49 +15,43 @@ const CheckIns = () => {
   const [showArchived, setShowArchived] = useState(false);
   const [checkInType, setCheckInType] = useState('standard');
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      setLoading(true);
-      try {
-        // Fetch all sections and filter for active ones on the client
-        const sectionsQuery = query(collection(db, "sections"));
-        const sectionsSnapshot = await getDocs(sectionsQuery);
-        const sectionsData = sectionsSnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() }));
-        setSections(sectionsData);
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Fetch all sections and filter for active ones on the client
+      const sectionsQuery = query(collection(db, "sections"));
+      const sectionsSnapshot = await getDocs(sectionsQuery);
+      const sectionsData = sectionsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }));
+      setSections(sectionsData);
 
-        // Fetch check-ins based on archive filter
-        const checkInsBaseQuery = collectionGroup(db, 'checkIns');
-        const checkInsQuery = showArchived
-          ? query(checkInsBaseQuery, orderBy('dateCreated', 'desc'))
-          : query(checkInsBaseQuery, where('isArchived', '!=', true), orderBy('dateCreated', 'desc'));
+      // Firestore limitation: cannot have inequality filter on one field and orderBy on another.
+      // We fetch all and filter client-side as a workaround.
+      const allCheckinsQuery = query(collectionGroup(db, 'checkIns'), orderBy('dateCreated', 'desc'));
+      const checkInsSnapshot = await getDocs(allCheckinsQuery);
 
-        // Firestore limitation: cannot have inequality filter on one field and orderBy on another.
-        // We will fetch all and filter client-side as a workaround.
-        const allCheckinsQuery = query(collectionGroup(db, 'checkIns'), orderBy('dateCreated', 'desc'));
-        const checkInsSnapshot = await getDocs(allCheckinsQuery);
+      const allCheckInsData = checkInsSnapshot.docs.map(doc => {
+        const pathParts = doc.ref.path.split('/');
+        const sectionId = pathParts[pathParts.indexOf('sections') + 1];
+        return { id: doc.id, sectionId, ...doc.data() };
+      });
 
-        const allCheckInsData = checkInsSnapshot.docs.map(doc => {
-          const pathParts = doc.ref.path.split('/');
-          const sectionId = pathParts[pathParts.indexOf('sections') + 1];
-          return { id: doc.id, sectionId, ...doc.data() };
-        });
+      const filteredCheckins = showArchived ? allCheckInsData : allCheckInsData.filter(ci => !ci.isArchived);
+      setCheckIns(filteredCheckins);
 
-        const filteredCheckins = showArchived ? allCheckInsData : allCheckInsData.filter(ci => !ci.isArchived);
-        setCheckIns(filteredCheckins);
-
-      } catch (error) {
-        console.error("Failed to fetch initial data:", error);
-        if (error.code === 'failed-precondition') {
-          alert("This query requires a database index. Please check the developer console for a link to create it.");
-        }
-      } finally {
-        setLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch initial data:", error);
+      if (error.code === 'failed-precondition') {
+        alert("This query requires a database index. Please check the developer console for a link to create it.");
       }
-    };
-
-    fetchInitialData();
+    } finally {
+      setLoading(false);
+    }
   }, [showArchived]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const createCheckIn = async () => {
     if (!title || selectedSections.length === 0) {
@@ -86,13 +80,28 @@ const CheckIns = () => {
           if (students && students.length > 0) {
             for (const authorEmail of students) {
               for (const recipientEmail of students) {
+                if (checkInType === 'endOfCourse' && authorEmail === recipientEmail) {
+                  continue;
+                }
+
                 const feedbackRef = doc(db, `sections/${sectionId}/checkIns/${checkInRef.id}/feedback`, `${authorEmail}_${recipientEmail}`);
+                const feedbackTemplate = checkInType === 'endOfCourse'
+                  ? {
+                    teacherOnlyFeedback: '',
+                    teacherGrade: '',
+                    peerAffirmation: '',
+                    peerSuggestion: '',
+                  }
+                  : {
+                    areasOfStrength: '',
+                    areasOfGrowth: '',
+                    grade: '',
+                  };
+
                 await setDoc(feedbackRef, {
                   authorId: authorEmail,
                   recipientId: recipientEmail,
-                  areasOfStrength: '',
-                  areasOfGrowth: '',
-                  grade: '',
+                  ...feedbackTemplate,
                   createdAt: serverTimestamp(),
                 });
               }
@@ -104,8 +113,7 @@ const CheckIns = () => {
       // Reset form
       setTitle('');
       setSelectedSections([]);
-      // It's good practice to refresh the list of check-ins here
-      // This part is not implemented yet, but leaving a comment for future improvement
+      await fetchInitialData();
     } catch (error) {
       console.error("Failed to create check-in:", error);
       alert(`Failed to create check-in: ${error.message}`);
@@ -157,6 +165,7 @@ const CheckIns = () => {
           <select className="form-select me-2 w-auto" value={checkInType} onChange={(e) => setCheckInType(e.target.value)}>
             <option value="standard">Standard</option>
             <option value="numerical">Numerical Grading</option>
+            <option value="endOfCourse">End of Course</option>
           </select>
           <select className="form-select me-2 w-auto" value={collectingFeedback} onChange={(e) => setCollectingFeedback(e.target.value === 'true')}>
             <option value="true">Collecting Feedback</option>
@@ -191,6 +200,8 @@ const CheckIns = () => {
             <div>
               {checkIn.type === 'numerical' ? (
                 <Link to={`/view-group-grading/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
+              ) : checkIn.type === 'endOfCourse' ? (
+                <Link to={`/view-end-course-feedback/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
               ) : (
                 <Link to={`/view-feedback/${checkIn.id}?sectionId=${checkIn.sectionId}`} className="btn btn-info btn-sm me-2">View Feedback</Link>
               )}

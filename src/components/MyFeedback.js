@@ -8,23 +8,27 @@ const MyFeedback = () => {
   const { currentUser } = useContext(AuthContext);
   const [feedbackData, setFeedbackData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [viewAsStudentMode, setViewAsStudentMode] = useState(true); // New state for the switch
+  const [viewAsStudentMode, setViewAsStudentMode] = useState(true);
 
-  // Autocomplete and user data state
-  const [allStudents, setAllStudents] = useState([]);
+  // Teacher participant preview state
+  const [allParticipants, setAllParticipants] = useState([]);
   const [userNicknames, setUserNicknames] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [selectedParticipant, setSelectedParticipant] = useState(null);
 
   // Determine the user whose feedback is being viewed
-  const viewingUser = currentUser.role === 'teacher' ? selectedStudent : currentUser;
+  const viewingUser = currentUser.role === 'teacher' ? selectedParticipant : currentUser;
 
-  // Fetch all users for the teacher's autocomplete
+  // Fetch rostered users for the teacher's autocomplete, including teacher test accounts.
   useEffect(() => {
     const fetchAllUsers = async () => {
       if (currentUser && currentUser.role === 'teacher') {
         const usersCollection = collection(db, 'users');
-        const usersSnapshot = await getDocs(usersCollection);
+        const [usersSnapshot, sectionsSnapshot, groupsSnapshot] = await Promise.all([
+          getDocs(usersCollection),
+          getDocs(collection(db, 'sections')),
+          getDocs(collectionGroup(db, 'groups')),
+        ]);
         const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         const nicknames = usersData.reduce((acc, user) => {
@@ -33,11 +37,23 @@ const MyFeedback = () => {
         }, {});
         setUserNicknames(nicknames);
 
-        const studentData = usersData
-          .filter(user => user.role === 'student')
-          .map(user => ({ email: user.email, name: nicknames[user.email] }));
+        const rosterEmails = new Set();
+        sectionsSnapshot.forEach(sectionDoc => {
+          (sectionDoc.data().students || []).forEach(email => rosterEmails.add(email));
+        });
+        groupsSnapshot.forEach(groupDoc => {
+          (groupDoc.data().students || []).forEach(email => rosterEmails.add(email));
+        });
 
-        setAllStudents(studentData.sort((a, b) => a.name.localeCompare(b.name)));
+        const participantData = usersData
+          .filter(user => rosterEmails.has(user.email))
+          .map(user => ({
+            email: user.email,
+            name: nicknames[user.email],
+            role: user.role || 'student',
+          }));
+
+        setAllParticipants(participantData.sort((a, b) => a.name.localeCompare(b.name)));
       }
     };
     fetchAllUsers();
@@ -107,9 +123,16 @@ const MyFeedback = () => {
           }
         }
 
-        const sortedFeedback = processedFeedback
-          .filter(item => item.dateCreated && typeof item.dateCreated.toDate === 'function')
-          .sort((a, b) => b.dateCreated.toDate() - a.dateCreated.toDate());
+        const sortedFeedback = processedFeedback.sort((a, b) => {
+          const aDate = a.dateCreated && typeof a.dateCreated.toDate === 'function'
+            ? a.dateCreated.toDate()
+            : new Date(0);
+          const bDate = b.dateCreated && typeof b.dateCreated.toDate === 'function'
+            ? b.dateCreated.toDate()
+            : new Date(0);
+
+          return bDate - aDate;
+        });
 
         setFeedbackData(sortedFeedback);
       } catch (error) {
@@ -122,14 +145,14 @@ const MyFeedback = () => {
     fetchFeedback();
   }, [viewingUser, viewAsStudentMode]);
 
-  const handleSelectStudent = (student) => {
-    setSelectedStudent(student);
-    setSearchTerm(student.name);
+  const handleSelectParticipant = (participant) => {
+    setSelectedParticipant(participant);
+    setSearchTerm(participant.name);
   };
 
-  const filteredStudents = searchTerm.length > 0
-    ? allStudents.filter(student =>
-      student.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredParticipants = searchTerm.length > 0
+    ? allParticipants.filter(participant =>
+      participant.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
     : [];
 
@@ -143,11 +166,12 @@ const MyFeedback = () => {
     return feedbackData.map(checkIn => {
       const selfReflection = checkIn.feedback.filter(item => item.authorId === viewingUser.email);
       const peerFeedback = checkIn.feedback.filter(item => item.authorId !== viewingUser.email);
+      const canSeeTeacherOnlyFields = currentUser.role === 'teacher' && !viewAsStudentMode;
 
       return (
         <div key={checkIn.id} className="mb-4 p-3 border rounded">
           <h3 className="h5">{checkIn.title}</h3>
-          <p className="text-muted">{checkIn.dateCreated?.toDate().toLocaleDateString()}</p>
+          <p className="text-muted">{checkIn.dateCreated?.toDate?.().toLocaleDateString() || 'Date unavailable'}</p>
           <table className="table table-bordered table-striped">
             <thead>
               {checkIn.type === 'numerical' ? (
@@ -156,11 +180,26 @@ const MyFeedback = () => {
                   <th>Grade</th>
                   <th>Justification</th>
                 </tr>
+              ) : checkIn.type === 'endOfCourse' && canSeeTeacherOnlyFields ? (
+                <tr>
+                  <th>From</th>
+                  <th>Teacher Grade</th>
+                  <th>Teacher-only Feedback</th>
+                  <th>Peer Affirmation</th>
+                  <th>Peer Suggestion</th>
+                </tr>
+              ) : checkIn.type === 'endOfCourse' ? (
+                <tr>
+                  <th>From</th>
+                  <th>Affirmation</th>
+                  <th>Suggestion</th>
+                </tr>
               ) : (
                 <tr>
                   <th>From</th>
                   <th>Area of Strength</th>
                   <th>Area of Growth</th>
+                  <th>Grade</th>
                 </tr>
               )}
             </thead>
@@ -173,10 +212,23 @@ const MyFeedback = () => {
                       <td>{item.grade}</td>
                       <td>{item.justification}</td>
                     </>
+                  ) : checkIn.type === 'endOfCourse' && canSeeTeacherOnlyFields ? (
+                    <>
+                      <td>{item.teacherGrade}</td>
+                      <td>{item.teacherOnlyFeedback}</td>
+                      <td>{item.peerAffirmation}</td>
+                      <td>{item.peerSuggestion}</td>
+                    </>
+                  ) : checkIn.type === 'endOfCourse' ? (
+                    <>
+                      <td>{item.peerAffirmation}</td>
+                      <td>{item.peerSuggestion}</td>
+                    </>
                   ) : (
                     <>
                       <td>{item.areasOfStrength}</td>
                       <td>{item.areasOfGrowth}</td>
+                      <td>{item.grade}</td>
                     </>
                   )}
                 </tr>
@@ -195,10 +247,23 @@ const MyFeedback = () => {
                       <td>{item.grade}</td>
                       <td>{item.justification}</td>
                     </>
+                  ) : checkIn.type === 'endOfCourse' && canSeeTeacherOnlyFields ? (
+                    <>
+                      <td>{item.teacherGrade}</td>
+                      <td>{item.teacherOnlyFeedback}</td>
+                      <td>{item.peerAffirmation}</td>
+                      <td>{item.peerSuggestion}</td>
+                    </>
+                  ) : checkIn.type === 'endOfCourse' ? (
+                    <>
+                      <td>{item.peerAffirmation}</td>
+                      <td>{item.peerSuggestion}</td>
+                    </>
                   ) : (
                     <>
                       <td>{item.areasOfStrength}</td>
                       <td>{item.areasOfGrowth}</td>
+                      <td>{item.grade}</td>
                     </>
                   )}
                 </tr>
@@ -213,7 +278,7 @@ const MyFeedback = () => {
   return (
     <div className="container mt-4">
       <h1 className="mb-4">
-        {currentUser.role === 'teacher' ? 'View Student Feedback' : 'My Feedback'}
+        {currentUser.role === 'teacher' ? 'View Participant Feedback' : 'My Feedback'}
       </h1>
       {currentUser.role === 'student' && (
         <p className="text-muted">
@@ -222,17 +287,17 @@ const MyFeedback = () => {
       )}
       {currentUser.role === 'teacher' && (
         <div className="p-3 border rounded bg-light mb-4 position-relative">
-          <label htmlFor="student-search" className="form-label"><strong>Search for a student</strong></label>
+          <label htmlFor="student-search" className="form-label"><strong>Search for a participant</strong></label>
           <input
             id="student-search"
             type="text"
             className="form-control"
-            placeholder="Start typing a student's name..."
+            placeholder="Start typing a rostered participant's name..."
             value={searchTerm}
             onChange={e => {
               setSearchTerm(e.target.value);
-              if (selectedStudent && e.target.value !== selectedStudent.name) {
-                setSelectedStudent(null);
+              if (selectedParticipant && e.target.value !== selectedParticipant.name) {
+                setSelectedParticipant(null);
               }
             }}
           />
@@ -244,18 +309,18 @@ const MyFeedback = () => {
               checked={viewAsStudentMode}
               onChange={(e) => setViewAsStudentMode(e.target.checked)}
             />
-            <label className="form-check-label" htmlFor="viewAsStudentSwitch">View as Student (respect feedback visibility)</label>
+            <label className="form-check-label" htmlFor="viewAsStudentSwitch">View as Participant (respect feedback visibility)</label>
           </div>
-          {searchTerm.length > 0 && filteredStudents.length > 0 && !selectedStudent && (
+          {searchTerm.length > 0 && filteredParticipants.length > 0 && !selectedParticipant && (
             <div className="list-group position-absolute w-100" style={{ zIndex: 1000 }}>
-              {filteredStudents.map(student => (
+              {filteredParticipants.map(participant => (
                 <button
-                  key={student.id}
+                  key={participant.email}
                   type="button"
                   className="list-group-item list-group-item-action"
-                  onClick={() => handleSelectStudent(student)}
+                  onClick={() => handleSelectParticipant(participant)}
                 >
-                  {student.name}
+                  {participant.name} <span className="text-muted">({participant.role})</span>
                 </button>
               ))}
             </div>
@@ -264,7 +329,7 @@ const MyFeedback = () => {
       )}
 
       {viewingUser ? renderFeedback() : (
-        currentUser.role === 'teacher' && <p className="text-center">Please select a student to begin.</p>
+        currentUser.role === 'teacher' && <p className="text-center">Please select a participant to begin.</p>
       )}
     </div>
   );

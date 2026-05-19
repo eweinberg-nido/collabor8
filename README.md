@@ -9,16 +9,34 @@ Collabor8 is a web application designed to facilitate peer feedback and collabor
 *   **Section Management:** Create, edit, and archive course sections.
 *   **Student Management:** Import student lists and easily assign them to groups.
 *   **Group Management:** Create and manage project groups within each section.
-*   **Feedback Cycles ("Check-ins"):** Initiate feedback periods ("check-ins") to collect peer evaluations.
+*   **Feedback Cycles ("Check-ins"):** Initiate feedback periods ("check-ins") to collect peer evaluations, numerical collaboration grades, or end-of-course partner feedback.
 *   **Feedback Visibility:** Control when students can see the feedback they've received.
 *   **Comprehensive Feedback Viewer:** View all submitted feedback, filterable by student and check-in.
+*   **Teacher Test Sections:** Create sections and groups that include teacher accounts for testing. Teachers can use **My Group** to preview a rostered participant's group and submit/view feedback using the same section and group structure as students.
 
 ### For Students
 
 *   **My Group:** View your assigned group and the members in it.
 *   **Submit Feedback:** Provide structured feedback to your peers, including areas of strength, areas for growth, and a numeric grade.
+*   **End-of-Course Feedback:** Provide teacher-only feedback and grades for partners, plus peer-visible affirmation and suggestion comments.
 *   **Self-Evaluation:** Submit a self-evaluation as part of each feedback cycle.
 *   **My Feedback:** View the feedback you've received from your peers for each check-in.
+
+## Feedback Cycle Types
+
+Teachers can create several types of check-ins from the **Check-ins** page:
+
+*   **Standard:** Students provide areas of strength, areas of growth, and a rubric grade for each group member, including themselves.
+*   **Numerical Grading:** Students provide collaboration grades and justifications using the numerical grading survey.
+*   **End of Course:** Students provide feedback for partners only. Each partner entry includes:
+    *   Teacher-only feedback, never shown to peers.
+    *   A teacher-only grade.
+    *   A peer-visible affirmation comment.
+    *   A peer-visible suggestion or improvement comment.
+
+End-of-course text fields show a live character count and are capped at 500 characters to keep feedback focused. Peer-visible end-of-course feedback follows the same anonymized visibility model as existing peer feedback: students only see it when teachers make feedback visible, while teachers can view the full teacher-only and peer-visible record.
+
+Check-ins generate feedback records from the section groups that exist when the check-in is created. If a test section includes teacher accounts in groups at that time, those teacher participants are included in the check-in workflow.
 
 ## Tech Stack
 

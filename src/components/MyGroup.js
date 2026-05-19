@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { db } from '../util/firebase-config';
 import { AuthContext } from '../context/Authcontext';
-import { collection, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
-import { useNavigate, Link } from 'react-router-dom';
+import { collection, collectionGroup, query, where, getDocs, doc, getDoc, setDoc } from 'firebase/firestore';
 import { Spinner } from 'react-bootstrap';
 import GroupGradingSurvey from './GroupGradingSurvey';
+import EndOfCourseFeedbackForm from './EndOfCourseFeedbackForm';
 
 const MyGroup = () => {
-    const navigate = useNavigate();
     const { currentUser } = useContext(AuthContext);
     const [group, setGroup] = useState(null);
     const [feedback, setFeedback] = useState({}); // { [checkInId]: { [recipientId]: feedbackData } }
@@ -15,9 +14,8 @@ const MyGroup = () => {
     const [activeCheckIns, setActiveCheckIns] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // View as Student State
+    // Teacher preview state
     const [allStudents, setAllStudents] = useState([]);
-    const [userNicknames, setUserNicknames] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStudent, setSelectedStudent] = useState(null);
 
@@ -29,20 +27,35 @@ const MyGroup = () => {
         const fetchAllUsers = async () => {
             if (currentUser && currentUser.role === 'teacher') {
                 const usersCollection = collection(db, 'users');
-                const usersSnapshot = await getDocs(usersCollection);
+                const [usersSnapshot, sectionsSnapshot, groupsSnapshot] = await Promise.all([
+                    getDocs(usersCollection),
+                    getDocs(collection(db, 'sections')),
+                    getDocs(collectionGroup(db, 'groups')),
+                ]);
                 const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
                 const nicknames = usersData.reduce((acc, user) => {
                     acc[user.email] = user.nickname || user.email;
                     return acc;
                 }, {});
-                setUserNicknames(nicknames);
 
-                const studentData = usersData
-                    .filter(user => user.role === 'student')
-                    .map(user => ({ email: user.email, name: nicknames[user.email] }));
+                const rosterEmails = new Set();
+                sectionsSnapshot.forEach(sectionDoc => {
+                    (sectionDoc.data().students || []).forEach(email => rosterEmails.add(email));
+                });
+                groupsSnapshot.forEach(groupDoc => {
+                    (groupDoc.data().students || []).forEach(email => rosterEmails.add(email));
+                });
 
-                setAllStudents(studentData.sort((a, b) => a.name.localeCompare(b.name)));
+                const sectionUserData = usersData
+                    .filter(user => rosterEmails.has(user.email))
+                    .map(user => ({
+                        email: user.email,
+                        name: nicknames[user.email],
+                        role: user.role || 'student',
+                    }));
+
+                setAllStudents(sectionUserData.sort((a, b) => a.name.localeCompare(b.name)));
             }
         };
         fetchAllUsers();
@@ -213,12 +226,12 @@ const MyGroup = () => {
         return (
             <div className="container mt-4">
                 <div className="p-3 border rounded bg-light mb-4 position-relative">
-                    <label htmlFor="student-search" className="form-label"><strong>View as Student</strong></label>
+                    <label htmlFor="student-search" className="form-label"><strong>View as Participant</strong></label>
                     <input
                         id="student-search"
                         type="text"
                         className="form-control"
-                        placeholder="Search for a student..."
+                        placeholder="Search for a rostered participant..."
                         value={searchTerm}
                         onChange={e => {
                             setSearchTerm(e.target.value);
@@ -236,13 +249,13 @@ const MyGroup = () => {
                                     className="list-group-item list-group-item-action"
                                     onClick={() => handleSelectStudent(student)}
                                 >
-                                    {student.name}
+                                    {student.name} <span className="text-muted">({student.role})</span>
                                 </button>
                             ))}
                         </div>
                     )}
                 </div>
-                <p className="text-center">Please select a student to view their group.</p>
+                <p className="text-center">Please select a participant to view their group.</p>
             </div>
         )
     }
@@ -253,12 +266,12 @@ const MyGroup = () => {
         <div>
             {currentUser.role === 'teacher' && (
                 <div className="p-3 border rounded bg-light mb-4 position-relative">
-                    <label htmlFor="student-search" className="form-label"><strong>View as Student</strong></label>
+                    <label htmlFor="student-search" className="form-label"><strong>View as Participant</strong></label>
                     <input
                         id="student-search"
                         type="text"
                         className="form-control"
-                        placeholder="Search for a student..."
+                        placeholder="Search for a rostered participant..."
                         value={searchTerm}
                         onChange={e => {
                             setSearchTerm(e.target.value);
@@ -276,7 +289,7 @@ const MyGroup = () => {
                                     className="list-group-item list-group-item-action"
                                     onClick={() => handleSelectStudent(student)}
                                 >
-                                    {student.name}
+                                    {student.name} <span className="text-muted">({student.role})</span>
                                 </button>
                             ))}
                         </div>
@@ -292,6 +305,21 @@ const MyGroup = () => {
                     if (checkIn.type === 'numerical') {
                         return (
                             <GroupGradingSurvey
+                                key={checkIn.id}
+                                checkIn={checkIn}
+                                group={group}
+                                memberDetails={memberDetails}
+                                viewingEmail={viewingEmail}
+                                initialFeedback={feedback[checkIn.id]}
+                                onUpdate={(recipientEmail, field, value) =>
+                                    handleFeedbackChange(checkIn.id, recipientEmail, field, value)
+                                }
+                            />
+                        );
+                    }
+                    if (checkIn.type === 'endOfCourse') {
+                        return (
+                            <EndOfCourseFeedbackForm
                                 key={checkIn.id}
                                 checkIn={checkIn}
                                 group={group}

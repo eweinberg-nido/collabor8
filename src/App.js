@@ -13,6 +13,7 @@ import ManageSections from './components/ManageSections';
 import EditSection from './components/EditSection';
 import ViewFeedback from './components/ViewFeedback'; // Import the new component
 import ViewGroupGrading from './components/ViewGroupGrading';
+import ViewEndOfCourseFeedback from './components/ViewEndOfCourseFeedback';
 import UserDashboard from './components/UserDashboard';
 import QuickCheckIn from './components/QuickCheckin';
 import WorkshopTickets from './components/WorkshopTickets';
@@ -45,6 +46,7 @@ function App() {
 
             <Route path="/view-feedback/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewFeedback /> : <Navigate to="/" />} /> {/* Add new route */}
             <Route path="/view-group-grading/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewGroupGrading /> : <Navigate to="/" />} />
+            <Route path="/view-end-course-feedback/:checkInId" element={currentUser && currentUser.role === 'teacher' ? <ViewEndOfCourseFeedback /> : <Navigate to="/" />} />
           </Routes>
         </div>
       </Router>
