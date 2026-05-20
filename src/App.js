@@ -19,6 +19,7 @@ import QuickCheckIn from './components/QuickCheckin';
 import WorkshopTickets from './components/WorkshopTickets';
 import WorkshopSignups from './components/WorkshopSignups';
 import WorkshopAttendance from './components/WorkshopAttendance';
+import PresentationScheduler from './components/PresentationScheduler';
 
 import { AuthContext } from './context/Authcontext';
 
@@ -38,6 +39,7 @@ function App() {
             <Route path="/workshops" element={currentUser ? <WorkshopTickets /> : <Navigate to="/" />} />
             <Route path="/workshop-signups" element={currentUser && currentUser.role === 'teacher' ? <WorkshopSignups /> : <Navigate to="/" />} />
             <Route path="/workshop-attendance" element={currentUser && currentUser.role === 'teacher' ? <WorkshopAttendance /> : <Navigate to="/" />} />
+            <Route path="/presentation-scheduler" element={currentUser && currentUser.role === 'teacher' ? <PresentationScheduler /> : <Navigate to="/" />} />
             <Route path="/manage-sections" element={currentUser && currentUser.role === 'teacher' ? <ManageSections /> : <Navigate to="/" />} />
             <Route path="/edit-section/:sectionId" element={currentUser && currentUser.role === 'teacher' ? <EditSection /> : <Navigate to="/" />} />
             <Route path="/check-ins" element={currentUser && currentUser.role === 'teacher' ? <CheckIns /> : <Navigate to="/" />} />

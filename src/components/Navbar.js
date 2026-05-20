@@ -24,6 +24,7 @@ const Navbar = () => {
           {/*<Link className="nav-link" to="/groups">Group Setup</Link>*/}
           <Link className="nav-link" to="/check-ins">Check-ins</Link>
           <Link className="nav-link" to="/quick-check-in">Quick Check-in</Link>
+          <Link className="nav-link" to="/presentation-scheduler">Presentation Scheduler</Link>
           <Link className="nav-link" to="/user-dashboard">User Dashboard</Link>
  
             <Link className="nav-link" to="/manage-sections">Manage Sections</Link>
